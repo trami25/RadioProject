@@ -1,0 +1,7 @@
+﻿  main.cpp
+C:\Users\mniko\source\repos\Teksture\main.cpp(170,24): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+C:\Users\mniko\source\repos\Teksture\main.cpp(348,53): warning C4566: character represented by universal-character-name '\u010D' cannot be represented in the current code page (1252)
+C:\Users\mniko\source\repos\Teksture\main.cpp(418,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\mniko\source\repos\Teksture\main.cpp(441,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\mniko\source\repos\Teksture\main.cpp(779,56): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+LINK : fatal error LNK1168: cannot open C:\Users\mniko\source\repos\Teksture\x64\Debug\Sablon.exe for writing
