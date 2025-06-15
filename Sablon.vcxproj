@@ -154,12 +154,15 @@
     <None Include="packages.config" />
     <None Include="speaker.frag" />
     <None Include="speaker.vert" />
+    <None Include="text.frag" />
+    <None Include="text.vert" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="LiberationSans-Regular.ttf" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\OneDrive\Bilder\credentials.png" />
+    <Image Include="..\..\..\OneDrive\Bilder\Screenshots\signature.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

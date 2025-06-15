@@ -9,25 +9,57 @@
 #include <GLFW/glfw3.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include <direct.h>
+
+
 
 
 unsigned int loadTexture(const char* filepath) {
+    stbi_set_flip_vertically_on_load(true);
+
+
     unsigned int texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
 
+    char cwd[1024];
+    _getcwd(cwd, sizeof(cwd));
+    std::cout << "Working dir: " << cwd << "\n";
+
+
     int width, height, nrChannels;
     unsigned char* data = stbi_load(filepath, &width, &height, &nrChannels, 0);
     if (data) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+        else {
+            std::cerr << "Unsupported number of channels: " << nrChannels << std::endl;
+            stbi_image_free(data);
+            return 0;
+        }
+
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Set texture parameters (important!)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
     else {
         std::cerr << "Failed to load texture: " << filepath << std::endl;
     }
+
     stbi_image_free(data);
     return texture;
 }
+
 
 // Globalne promenljive za slajder
 float sliderValue = 0.5f; // Početna vrednost (50%)
@@ -117,34 +149,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glLoadIdentity();
 }
 
-void renderText(unsigned int texture, const std::string& text, float x, float y, float scale, float r, float g, float b) {
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glEnable(GL_TEXTURE_2D);
 
-    glColor3f(r, g, b);
-    glBegin(GL_QUADS);
-
-    float charWidth = 1.0f / 16.0f; // Širina jednog karaktera u UV koordinatama (za 16x16 font mrežu)
-    float charHeight = 1.0f / 16.0f;
-
-    for (size_t i = 0; i < text.size(); ++i) {
-        char c = text[i];
-        float u = (c % 16) * charWidth;
-        float v = (c / 16) * charHeight;
-
-        float xpos = x + i * scale;
-        float ypos = y;
-
-        // Kvad za karakter
-        glTexCoord2f(u, v + charHeight); glVertex2f(xpos, ypos);                 // Bottom-left
-        glTexCoord2f(u + charWidth, v + charHeight); glVertex2f(xpos + scale, ypos); // Bottom-right
-        glTexCoord2f(u + charWidth, v); glVertex2f(xpos + scale, ypos + scale);     // Top-right
-        glTexCoord2f(u, v); glVertex2f(xpos, ypos + scale);                         // Top-left
-    }
-
-    glEnd();
-    glDisable(GL_TEXTURE_2D);
-}
 
 
 // Modifikacija funkcije `getActiveStation` da proveri antenu
@@ -321,12 +326,10 @@ void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
         // Ažuriranje vrednosti slajdera
         sliderValue = (ndcX - sliderX) / sliderWidth;
         sliderValue = fmax(0.0f, fmin(1.0f, sliderValue)); // Ograničenje vrednosti na [0, 1]
+        timeUniform = sliderValue; // Ažuriranje uniformne promenljive za vreme
         std::cout << "Slider Value Updated: " << sliderValue << "\n";
     }
 }
-
-
-
 
 int main() {
     int argc = 0;
@@ -377,6 +380,34 @@ int main() {
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
+    float quadVertices[] = {
+        // positions     // texCoords
+         1.0f,  1.0f,     1.0f, 1.0f,  // top right
+         0.6f,  1.0f,     0.0f, 1.0f,  // top left
+         0.6f,  0.8f,     0.0f, 0.0f,  // bottom left
+
+         1.0f,  1.0f,     1.0f, 1.0f,  // top right
+         0.6f,  0.8f,     0.0f, 0.0f,  // bottom left
+         1.0f,  0.8f,     1.0f, 0.0f   // bottom right
+    };
+
+    unsigned int quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // texture coord attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
 
     // === Verteksi za telo radija (pravougaonik) ===
@@ -598,7 +629,8 @@ int main() {
     unsigned int speakerShaderProgram = createShaderProgram("speaker.vert", "speaker.frag");
     unsigned int gridShaderProgram = createShaderProgram("grid.vert", "grid.frag");
     unsigned int lampShaderProgram = createShaderProgram("lamp.vert", "lamp.frag");
-    unsigned int fontTexture = loadTexture("credentials.png");
+    unsigned int fontTexture = loadTexture("res/signature.png");
+    unsigned int textShaderProgram = createShaderProgram("text.vert", "text.frag");
 
     // Glavna petlja
     while (!glfwWindowShouldClose(window)) {
@@ -623,6 +655,15 @@ int main() {
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
+        glUseProgram(textShaderProgram); // bind your shader
+        glBindVertexArray(quadVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fontTexture);
+        glUniform1i(glGetUniformLocation(textShaderProgram, "uTexture"), 0); // texture unit 0
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
 
         drawAntenna(bodyShaderProgram);
         // Prikaz teksta displaya
@@ -641,12 +682,9 @@ int main() {
          
 
             // Crtanje teksta
-            renderText(fontTexture, currentStation.c_str(), -0.7f, 0.5f, 0.05f, 1.0f, 1.0f, 1.0f);
+          
            //drawText(textPosition, displayY,currentStation.c_str(), 1.0f, 1.0f, 1.0f, 1.0f);
         }
-
-      
-        renderText(fontTexture, "", -0.9f, 0.8f, 0.05f, 1.0f, 1.0f, 1.0f);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
@@ -677,6 +715,7 @@ int main() {
             // Zvučnik vibrira
             glUseProgram(speakerShaderProgram);
             glUniform1f(glGetUniformLocation(speakerShaderProgram, "uTime"), timeUniform);
+            glUniform1f(glGetUniformLocation(speakerShaderProgram, "uIntensity"), sliderValue);
             glBindVertexArray(speakerVAO);
             glDrawArrays(GL_TRIANGLE_FAN, 0, circleSegments + 2);
             glBindVertexArray(0);

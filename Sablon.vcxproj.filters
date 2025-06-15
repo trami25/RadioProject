@@ -36,12 +36,17 @@
     <None Include="grid.frag" />
     <None Include="lamp.vert" />
     <None Include="lamp.frag" />
+    <None Include="text.vert" />
+    <None Include="text.frag" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="LiberationSans-Regular.ttf" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\OneDrive\Bilder\credentials.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\..\OneDrive\Bilder\Screenshots\signature.png">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
