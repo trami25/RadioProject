@@ -38,6 +38,8 @@
     <None Include="lamp.frag" />
     <None Include="text.vert" />
     <None Include="text.frag" />
+    <None Include="slider.vert" />
+    <None Include="slider.frag" />
   </ItemGroup>
   <ItemGroup>
     <Font Include="LiberationSans-Regular.ttf" />

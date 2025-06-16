@@ -69,6 +69,13 @@ float sliderWidth = 0.8f; // Širina slajdera
 float sliderY = -0.5f; // Y pozicija slajdera
 float sliderHeight = 0.05f; // Visina slajdera
 
+float sliderX2 = 0.3f;       // Trenutna X pozicija centra
+float sliderSpeed2 = 0.5f;   // Brzina kretanja (u jedinicama po sekundi)
+int direction2 = -1;         // -1 = levo, 1 = desno
+float deltaTime = 0.0f; // vreme između dva frejma
+float lastFrame = 0.0f; // vreme prethodnog frejma
+
+
 bool isRadioOn = true; // Početno stanje: radio je uključen
 float buttonX = -0.8f; // X pozicija dugmeta
 float buttonY = -0.8f; // Y pozicija dugmeta
@@ -442,13 +449,71 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    // === INDIKATOR ===
+
+    float sliderWidth2 = 0.2f;
+    float sliderHeight2 = 0.1f;
+    float sliderY2 = 0.2f; // Visina u gornjem delu tela
+
+    float sliderVertices2[] = {
+        //  x, y,         u, v
+        0.3f - sliderWidth2 / 2, sliderY2 - sliderHeight2 / 2, 0.0f, 0.0f, // bottom-left
+        0.3f + sliderWidth2 / 2, sliderY2 - sliderHeight2 / 2, 1.0f, 0.0f, // bottom-right
+        0.3f + sliderWidth2 / 2, sliderY2 + sliderHeight2 / 2, 1.0f, 1.0f, // top-right
+        0.3f - sliderWidth2 / 2, sliderY2 + sliderHeight2 / 2, 0.0f, 1.0f  // top-left
+    };
+
+
+    unsigned int sliderIndices2[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    unsigned int sliderVAO, sliderVBO, sliderEBO;
+    glGenVertexArrays(1, &sliderVAO);
+    glGenBuffers(1, &sliderVBO);
+    glGenBuffers(1, &sliderEBO);
+
+    glBindVertexArray(sliderVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, sliderVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(sliderVertices2), sliderVertices2, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sliderEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(sliderIndices2), sliderIndices2, GL_STATIC_DRAW);
+
+    // Pozicija: lokacija 0, 2 floats (x, y)
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Tekstura: lokacija 1, 2 floats (u, v)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+
+
+
     // === Verteksi za zvučnik (krug) ===
     const int circleSegments = 100;
-    std::vector<float> circleVertices = { 0.0f, 0.0f }; // Centar kruga
+    std::vector<float> circleVertices; // x, y, u, v
+    circleVertices.push_back(0.0f); // Centar x
+    circleVertices.push_back(0.0f); // Centar y
+    circleVertices.push_back(0.5f); // Centar u
+    circleVertices.push_back(0.5f); // Centar v
+
     for (int i = 0; i <= circleSegments; i++) {
         float angle = i * 2.0f * M_PI / circleSegments;
-        circleVertices.push_back(0.2f * cos(angle)); // Poluprečnik kruga = 0.2
-        circleVertices.push_back(0.2f * sin(angle));
+        float x = 0.2f * cos(angle);
+        float y = 0.2f * sin(angle);
+        float u = 0.5f + 0.5f * cos(angle); // [0,1] mapirano na teksturu
+        float v = 0.5f + 0.5f * sin(angle);
+
+        circleVertices.push_back(x);
+        circleVertices.push_back(y);
+        circleVertices.push_back(u);
+        circleVertices.push_back(v);
     }
 
     unsigned int speakerVAO, speakerVBO;
@@ -459,11 +524,17 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, speakerVBO);
     glBufferData(GL_ARRAY_BUFFER, circleVertices.size() * sizeof(float), circleVertices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    // Lokacija 0: pozicija (x,y)
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    // Lokacija 1: teksturna koordinata (u,v)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
 
     // Verteksi za lampicu (krug)
     const int lampSegments = 50;
@@ -631,6 +702,9 @@ int main() {
     unsigned int lampShaderProgram = createShaderProgram("lamp.vert", "lamp.frag");
     unsigned int fontTexture = loadTexture("res/signature.png");
     unsigned int textShaderProgram = createShaderProgram("text.vert", "text.frag");
+    unsigned int speakerTexture = loadTexture("res/radio.png");
+    unsigned int sliderTexture = loadTexture("res/fm.png");
+	unsigned int sliderShaderProgram = createShaderProgram("slider.vert", "slider.frag");
 
     // Glavna petlja
     while (!glfwWindowShouldClose(window)) {
@@ -639,6 +713,9 @@ int main() {
             glfwSetWindowShouldClose(window, true);
         }
 
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
         // Povećanje uniformnog vremena za animaciju zvučnika
         timeUniform += 0.01f;
 
@@ -663,7 +740,7 @@ int main() {
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-
+       
 
         drawAntenna(bodyShaderProgram);
         // Prikaz teksta displaya
@@ -691,6 +768,8 @@ int main() {
             std::cerr << "OpenGL greska: " << gluErrorString(error) << std::endl;
         }
 
+        // Ažuriraj poziciju slidera
+       
 
 
         if (isRadioOn) {
@@ -714,17 +793,59 @@ int main() {
         if (isRadioOn && !currentStation.empty()) {
             // Zvučnik vibrira
             glUseProgram(speakerShaderProgram);
-            glUniform1f(glGetUniformLocation(speakerShaderProgram, "uTime"), timeUniform);
-            glUniform1f(glGetUniformLocation(speakerShaderProgram, "uIntensity"), sliderValue);
+
+            // Binduj teksturu
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, speakerTexture);
+            glUniform1i(glGetUniformLocation(speakerShaderProgram, "uTexture"), 0);
+
+            // Uniformi za vreme i intenzitet
+            glUniform1f(glGetUniformLocation(speakerShaderProgram, "uTime"), glfwGetTime());
+            glUniform1f(glGetUniformLocation(speakerShaderProgram, "uIntensity"), sliderValue); // sliderValue u opsegu 0–1
+
+            // Crtanje
             glBindVertexArray(speakerVAO);
             glDrawArrays(GL_TRIANGLE_FAN, 0, circleSegments + 2);
-            glBindVertexArray(0);
+
 
             // Crtanje zaštitne mreže
             glUseProgram(gridShaderProgram);
             glBindVertexArray(speakerVAO); // Koristi isti VAO kao za membranu
             glDrawArrays(GL_TRIANGLE_FAN, 0, circleSegments + 2);
             glBindVertexArray(0);
+
+            // stanice
+        
+            glUseProgram(sliderShaderProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sliderTexture);
+            glUniform1i(glGetUniformLocation(sliderShaderProgram, "uTexture"), 0);
+
+            glBindVertexArray(sliderVAO);
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+            glBindVertexArray(0);
+
+
+            sliderX2 -= sliderSpeed2 * deltaTime;
+
+            // Ako izađe skroz levo, vrati se na desnu stranu
+            if (sliderX2 < -0.5f - sliderWidth2 / 2) {
+                sliderX2 = 0.5f + sliderWidth2 / 2;
+            }
+
+            // Ažuriraj vertekse
+            float newSliderVertices[] = {
+                //  x, y,      u, v
+                sliderX2 - sliderWidth2 / 2, sliderY2 - sliderHeight2 / 2,   0.0f, 0.0f,
+                sliderX2 + sliderWidth2 / 2, sliderY2 - sliderHeight2 / 2,   1.0f, 0.0f,
+                sliderX2 + sliderWidth2 / 2, sliderY2 + sliderHeight2 / 2,   1.0f, 1.0f,
+                sliderX2 - sliderWidth2 / 2, sliderY2 + sliderHeight2 / 2,   0.0f, 1.0f
+            };
+
+
+            glBindBuffer(GL_ARRAY_BUFFER, sliderVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(newSliderVertices), newSliderVertices);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
         else {
             // Zvučnik statičan
